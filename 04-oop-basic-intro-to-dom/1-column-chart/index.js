@@ -1,67 +1,42 @@
 export default class ColumnChart {
-    _chartHeight = 50;
-    _status = 'idle';
+    chartHeight = 50;
+    status = 'idle';
 
-    constructor(options) {
-        try {
-            const { data = [], label = '', link = '', value, formatHeading = value => value } = options;
+    constructor({ data = [], label = '', link = '', value, formatHeading = value => value } = {}) {
+        this.data = data;
+        this.label = label;
+        this.link = link;
+        this.value = formatHeading(value);
 
-            this.data = data;
-            this.label = label;
-            this.link = link;
-            this.value = formatHeading(value);
+        this.status = data.length > 0 ? 'idle' : 'loading';
 
-            this._status = data.length > 0 ? 'idle' : 'loading';
-
-            this.render();
-
-        } catch (e) {
-            console.error(e);
-            this.renderBlank();
-        }
-    }
-
-    get chartHeight() {
-        return this._chartHeight;
-    }
-
-    set chartHeight(height) {
-        this._chartHeight = height;
+        this.render();
     }
 
     render() {
         const wrapper = document.createElement('div');
         wrapper.innerHTML = this.getTemplate();
         this.element = wrapper.firstElementChild;
+
+        this.getElements();
+
+        if (this.status !== 'loading') {
+            this.elements.body.innerHTML = this.getListElements();
+        }
+    }
+
+    getElements() {
         this.elements = {};
 
         for (const elem of this.element.querySelectorAll('[data-element]')) {
             const name = elem.getAttribute('data-element');
             this.elements[name] = elem;
         }
-
-        if (this._status !== 'loading') {
-            this.elements.body.innerHTML = this.getListElements();
-        }
-    }
-
-    renderBlank() {
-        const wrapper = document.createElement('div');
-        wrapper.innerHTML = `
-            <div class="column-chart column-chart_loading" style="--chart-height: ${this.chartHeight}">
-                <div class="column-chart__title">Loading</div>
-                <div class="column-chart__container">
-                    <div data-element="header" class="column-chart__header"></div>
-                    <div data-element="body" class="column-chart__chart"></div>
-                </div>
-            </div> 
-        `;
-        this.element = wrapper.firstElementChild;
     }
 
     getTemplate() {
         return `
-        <div class="column-chart${this._status === 'loading' ? ' column-chart_loading' : ''}" style="--chart-height: ${this.chartHeight}">
+        <div class="column-chart${this.status === 'loading' ? ' column-chart_loading' : ''}" style="--chart-height: ${this.chartHeight}">
             <div class="column-chart__title">
                 ${this.label}
                 ${this.link && '<a class="column-chart__link" href="' + this.link + '">View all</a>'}
