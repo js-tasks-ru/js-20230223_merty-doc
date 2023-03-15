@@ -1,4 +1,8 @@
 export default class NotificationMessage {
+    static prevNotification;
+
+    timer;
+
     constructor(message = '', { duration = 2000, type = 'success' } = {}) {
         this.message = message;
         this.duration = duration;
@@ -26,17 +30,22 @@ export default class NotificationMessage {
     }
 
     show(container = document.body) {
-        const prevNotificationElem = container.querySelector('.notification');
-        if (prevNotificationElem) prevNotificationElem.remove();
-
         container.append(this.element);
 
-        setTimeout(() => {
+        if (NotificationMessage.prevNotification) {
+            NotificationMessage.prevNotification.destroy();
+        }
+
+        NotificationMessage.prevNotification = this;
+
+        this.timer = setTimeout(() => {
             this.remove();
         }, this.duration);
     }
 
     remove() {
+        clearTimeout(this.timer);
+
         if (this.element) {
             this.element.remove();
         }
@@ -45,5 +54,6 @@ export default class NotificationMessage {
     destroy() {
         this.remove();
         this.element = null;
+        NotificationMessage.prevNotification = null;
     }
 }
