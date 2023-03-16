@@ -47,7 +47,7 @@ export default class DoubleSlider {
         document.removeEventListener('pointermove', this.handleMoveTo);
     }
 
-    constructor({ min = 20, max = 100, formatValue = value => value, selected } = {}) {
+    constructor({ min = 0, max = 0, formatValue = value => value, selected } = {}) {
         this.min = min;
         this.max = max;
         this.formatValue = formatValue;

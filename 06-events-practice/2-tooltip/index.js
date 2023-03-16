@@ -3,6 +3,25 @@ class Tooltip {
     elements;
     element;
 
+    handlePointerOver = event => {
+        const target = event.target;
+        if (!target.dataset.tooltip) return;
+
+        if (!this.elements.has(target)) {
+            this.elements.set(target, target.dataset.tooltip);
+        }
+
+        this.element.innerHTML = this.elements.get(target);
+        document.body.append(this.element);
+
+        target.addEventListener('pointermove', this.moveHandler);
+
+        target.addEventListener('pointerout', () => {
+            this.element.remove();
+            target.removeEventListener('pointermove', this.moveHandler);
+        });
+    }
+
     moveHandler = event => {
         this.element.style.top = `${event.clientY}px`;
         this.element.style.left = `${event.clientX}px`;
@@ -19,10 +38,6 @@ class Tooltip {
     initialize() {
         this.elements = new Map();
 
-        for (const elem of document.querySelectorAll('[data-tooltip]')) {
-            this.elements.set(elem, elem.dataset.tooltip);
-        }
-
         this.render();
         this.initEventListeners();
     }
@@ -37,21 +52,7 @@ class Tooltip {
     }
 
     initEventListeners() {
-        for (const [ parent, content ] of this.elements) {
-            parent.addEventListener('pointerover', event => {
-                if (event.target !== parent) return;
-
-                this.element.innerHTML = content;
-                document.body.append(this.element);
-
-                parent.addEventListener('pointermove', this.moveHandler);
-            });
-
-            parent.addEventListener('pointerout', () => {
-                this.element.remove();
-                parent.removeEventListener('pointermove', this.moveHandler);
-            });
-        }
+        document.addEventListener('pointerover', this.handlePointerOver);
     }
 
     remove() {
@@ -65,6 +66,8 @@ class Tooltip {
 
         this.elements = null;
         this.element = null;
+
+        document.removeEventListener('pointerover', this.handlePointerOver);
 
         Tooltip.#instance = null;
     }
