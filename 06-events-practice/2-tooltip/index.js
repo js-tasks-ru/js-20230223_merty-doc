@@ -14,15 +14,15 @@ class Tooltip {
         this.element.innerHTML = this.elements.get(target);
         document.body.append(this.element);
 
-        target.addEventListener('pointermove', this.moveHandler);
+        target.addEventListener('pointermove', this.handleMove);
 
         target.addEventListener('pointerout', () => {
             this.element.remove();
-            target.removeEventListener('pointermove', this.moveHandler);
+            target.removeEventListener('pointermove', this.handleMove);
         });
     }
 
-    moveHandler = event => {
+    handleMove = event => {
         this.element.style.top = `${event.clientY}px`;
         this.element.style.left = `${event.clientX}px`;
     };
