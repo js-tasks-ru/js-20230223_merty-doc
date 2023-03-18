@@ -3,49 +3,16 @@ export default class DoubleSlider {
     subElements;
 
     handleMoveFrom = event => {
-        const { left, width } = this.subElements.inner.getBoundingClientRect();
-        const { clientX } = event;
-
-        const percent = (clientX - left) / width;
-        const result = this.min + percent * (this.max - this.min);
-
-        if (result >= this.selected.to) {
-            this.selected.from = this.selected.to;
-        } else if (result <= this.min) {
-            this.selected.from = this.min;
-        } else {
-            this.selected.from = Math.round(result);
-        }
-
-        this.leftThumbUpdate();
-    }
+        this.moveFrom(event);
+    };
 
     handleMoveTo = event => {
-        const { right, width } = this.subElements.inner.getBoundingClientRect();
-        const { clientX } = event;
-
-        const percent = (right - clientX) / width;
-        const result = this.max - percent * (this.max - this.min);
-
-        if (result <= this.selected.from) {
-            this.selected.to = this.selected.from;
-        } else if (result >= this.max) {
-            this.selected.to = this.max;
-        } else {
-            this.selected.to = Math.round(result);
-        }
-
-        this.rightThumbUpdate();
-    }
+        this.moveTo(event);
+    };
 
     handleUp = () => {
-        this.element.dispatchEvent(new CustomEvent('range-select', {
-            detail: this.selected
-        }));
-
-        document.removeEventListener('pointermove', this.handleMoveFrom);
-        document.removeEventListener('pointermove', this.handleMoveTo);
-    }
+        this.up();
+    };
 
     constructor({ min = 0, max = 0, formatValue = value => value, selected } = {}) {
         this.min = min;
@@ -93,57 +60,114 @@ export default class DoubleSlider {
     }
 
     initEventListeners() {
-        this.subElements.thumbLeft.addEventListener('pointerdown', () => {
+        const { thumbLeft, thumbRight } = this.subElements;
+
+        const upEvent = new MouseEvent('pointerup', {
+            bubbles: true
+        });
+
+        thumbLeft.addEventListener('pointerdown', () => {
+            thumbRight.dispatchEvent(upEvent);
             document.addEventListener('pointermove', this.handleMoveFrom);
         });
 
-        this.subElements.thumbRight.addEventListener('pointerdown', () => {
+        thumbRight.addEventListener('pointerdown', () => {
+            thumbLeft.dispatchEvent(upEvent);
             document.addEventListener('pointermove', this.handleMoveTo);
         });
 
         document.addEventListener('pointerup', this.handleUp);
     }
 
+    getMoveCalculationData(event) {
+        const { right, left, width } = this.subElements.inner.getBoundingClientRect();
+        const { clientX } = event;
+        const range = this.max - this.min;
+
+        return { clientX, right, left, width, range };
+    }
+
+    up() {
+        this.element.dispatchEvent(new CustomEvent('range-select', {
+            detail: this.selected
+        }));
+
+        document.removeEventListener('pointermove', this.handleMoveFrom);
+        document.removeEventListener('pointermove', this.handleMoveTo);
+    }
+
+    moveFrom(event) {
+        const { clientX, left, width, range } = this.getMoveCalculationData(event);
+
+        const percent = (clientX - left) / width;
+        const result = this.min + percent * range;
+
+        if (result >= this.selected.to) {
+            this.selected.from = this.selected.to;
+        } else if (result <= this.min) {
+            this.selected.from = this.min;
+        } else {
+            this.selected.from = Math.round(result);
+        }
+
+        this.leftThumbUpdate();
+    }
+
+    moveTo(event) {
+        const { clientX, right, width, range } = this.getMoveCalculationData(event);
+
+        const percent = (right - clientX) / width;
+        const result = this.max - percent * range;
+
+        if (result <= this.selected.from) {
+            this.selected.to = this.selected.from;
+        } else if (result >= this.max) {
+            this.selected.to = this.max;
+        } else {
+            this.selected.to = Math.round(result);
+        }
+
+        this.rightThumbUpdate();
+    }
+
     leftThumbUpdate() {
+        const { from, progress, thumbLeft } = this.subElements;
         const percent = 1 - ((this.max - this.selected.from) / (this.max - this.min));
 
-        this.subElements.from.innerHTML = this.formatValue(this.selected.from);
+        from.innerHTML = this.formatValue(this.selected.from);
 
         if (this.selected.from >= this.selected.to) {
-            this.subElements.progress.style.left = `${100 - parseFloat(this.subElements.progress.style.right)}%` || '100%';
-            this.subElements.thumbLeft.style.left = `${100 - parseFloat(this.subElements.progress.style.right)}%` || '100%';
-            return;
-        }
+            progress.style.left = `${100 - parseFloat(progress.style.right)}%`;
+            thumbLeft.style.left = `${100 - parseFloat(progress.style.right)}%`;
 
-        if (this.selected.from <= this.min) {
-            this.subElements.progress.style.left = `0%`;
-            this.subElements.thumbLeft.style.left = `0%`;
-            return;
-        }
+        } else if (this.selected.from <= this.min) {
+            progress.style.left = `0%`;
+            thumbLeft.style.left = `0%`;
 
-        this.subElements.progress.style.left = `${percent * 100}%`;
-        this.subElements.thumbLeft.style.left = `${percent * 100}%`;
+        } else {
+            progress.style.left = `${percent * 100}%`;
+            thumbLeft.style.left = `${percent * 100}%`;
+        }
     }
 
     rightThumbUpdate() {
+        const { to, progress, thumbRight } = this.subElements;
         const percent = ((this.max - this.selected.to) / (this.max - this.min));
 
-        this.subElements.to.innerHTML = this.formatValue(this.selected.to);
+        to.innerHTML = this.formatValue(this.selected.to);
 
         if (this.selected.to <= this.selected.from) {
-            this.subElements.progress.style.right = `${100 - parseFloat(this.subElements.progress.style.left)}%` || '100%';
-            this.subElements.thumbRight.style.right = `${100 - parseFloat(this.subElements.progress.style.left)}%` || '100%';
-            return;
-        }
+            progress.style.right = `${100 - parseFloat(progress.style.left)}%`;
+            thumbRight.style.right = `${100 - parseFloat(progress.style.left)}%`;
 
-        if (this.selected.to >= this.max) {
-            this.subElements.progress.style.right = `0%`;
-            this.subElements.thumbRight.style.right = `0%`;
-            return;
-        }
+        } else if (this.selected.to >= this.max) {
+            progress.style.right = `0%`;
+            thumbRight.style.right = `0%`;
 
-        this.subElements.progress.style.right = `${percent * 100}%`;
-        this.subElements.thumbRight.style.right = `${percent * 100}%`;
+        } else {
+            progress.style.right = `${percent * 100}%`;
+            thumbRight.style.right = `${percent * 100}%`;
+        }
     }
 
     remove() {
@@ -155,7 +179,10 @@ export default class DoubleSlider {
     destroy() {
         this.remove();
         this.element = null;
+        this.subElements = null;
 
         document.removeEventListener('pointerup', this.handleUp);
+        document.removeEventListener('pointermove', this.handleMoveFrom);
+        document.removeEventListener('pointermove', this.handleMoveTo);
     }
 }

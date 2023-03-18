@@ -11,13 +11,13 @@
     import DoubleSlider from './index.js';
 
     const slider = new DoubleSlider({
-      min: 300,
-      max: 800,
-      formatValue: data => `$${data}`,
+      min: 100,
+      max: 200,
+      formatValue: value => '$' + value,
       selected: {
-        from: 400,
-        to: 600
-      },
+        from: 120,
+        to: 150
+      }
     });
 
     console.log(slider);
