@@ -9,6 +9,7 @@
 
 <script type="module">
   import SortableTable from './index.js';
+  import { products, bestsellers } from './__mocks__/products-data.js';
 
   const header = [
     {
@@ -55,7 +56,10 @@
   ];
 
   const sortableTable = new SortableTable(header, {
-    url: 'api/rest/products'
+    url: 'api/rest/products',
+    // data: products,
+    // data: bestsellers,
+    // isSortLocally: true
   });
 
   root.append(sortableTable.element);

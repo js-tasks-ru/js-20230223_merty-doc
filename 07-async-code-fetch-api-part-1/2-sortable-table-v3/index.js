@@ -3,66 +3,68 @@ import fetchJson from './utils/fetch-json.js';
 const BACKEND_URL = 'https://course-js.javascript.ru';
 
 export default class SortableTable {
-  element;
-  subElements;
-  rowsPerPage = 30;
+    element;
+    subElements;
+    page = 0;
+    rowsPerPage = 30;
+    status = 'pending';
+    isLoaded = false;
 
-  constructor(headerConfig = [], {
-    url = '',
-    isSortLocally = false,
-    data = [],
-    sorted = {}
-  } = {}) {
-    this.url= url;
-    this.isSortLocally = isSortLocally;
-    this.headerConfig = headerConfig;
-    this.data = data;
-    this.sorted = sorted;
-
-    this.render();
-    this.initEventListeners();
-    // this.sort(this.sorted);
-  }
-
-  initEventListeners() {
-    const sortableCellElems = this.subElements.header.querySelectorAll('[data-sortable="true"]');
-
-    for (const elem of sortableCellElems) {
-      elem.addEventListener('pointerdown', () => {
-        this.sort({
-          id: elem.dataset.id,
-          order: !elem.dataset.order || elem.dataset.order === 'asc' ? 'desc' : 'asc',
-        });
-      });
-    }
-  }
-
-  async render() {
-    const wrapper = document.createElement('div');
-    wrapper.innerHTML = this.getTemplate();
-    this.element = wrapper.firstElementChild;
-
-    this.subElements = this.getSubElements();
-
-    await this.update();
-
-    this.subElements.header.innerHTML = this.getHeaderTemplate();
-    this.subElements.body.innerHTML = this.getRowTemplate();
-  }
-
-  getSubElements() {
-    const subElements = {};
-
-    for (const elem of this.element.querySelectorAll('[data-element]')) {
-      const name = elem.dataset.element;
-      subElements[name] = elem;
+    handleClick = (event) => {
+        this.handleClickSort(event);
     }
 
-    return subElements;
-  }
+    handleScroll = () => {
+        this.handleInfinityScroll();
+    };
 
-  getTemplate() {
-    return `
+    constructor(headerConfig = [], {
+        url = '',
+        isSortLocally = false,
+        data = [],
+        sorted = { id: 'title', order: 'asc' }
+    } = {}) {
+        this.url = url;
+        this.isSortLocally = isSortLocally;
+        this.headerConfig = headerConfig;
+        this.data = data;
+        this.sorted = sorted;
+
+        this.render();
+        this.initEventListeners();
+        this.update(this.sorted);
+    }
+
+    initEventListeners() {
+        this.subElements.header.addEventListener('pointerdown', this.handleClick);
+        document.addEventListener('scroll', this.handleScroll);
+    }
+
+    render() {
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = this.getTemplate();
+        this.element = wrapper.firstElementChild;
+
+        this.subElements = this.getSubElements();
+
+        this.subElements.header.innerHTML = this.getHeaderTemplate();
+        this.subElements.body.innerHTML = this.getRowTemplate();
+        this.subElements.arrow = this.subElements.header.querySelector('[data-element="arrow"]');
+    }
+
+    getSubElements() {
+        const subElements = {};
+
+        for (const elem of this.element.querySelectorAll('[data-element]')) {
+            const name = elem.dataset.element;
+            subElements[name] = elem;
+        }
+
+        return subElements;
+    }
+
+    getTemplate() {
+        return `
             <div class="sortable-table">
                 <div data-element="header" class="sortable-table__header sortable-table__row"></div>
                 <div data-element="body" class="sortable-table__body"></div>
@@ -75,124 +77,154 @@ export default class SortableTable {
                 </div>
             </div>
         `;
-  }
+    }
 
-  getHeaderTemplate() {
-    return this.headerConfig.map(({ id = '', title = '', sortable = false }) => `
-            <div class="sortable-table__cell" data-id="${id}" data-sortable="${sortable}">
+    getHeaderTemplate() {
+        const arrow = `
+          <span data-element="arrow" class="sortable-table__sort-arrow">
+              <span class="sort-arrow">
+          </span>
+        `;
+
+        return this.headerConfig.map(({ id = '', title = '', sortable = false }) => `
+            <div class="sortable-table__cell" data-id="${id}" data-sortable="${sortable}"${sortable ? ' data-order="asc"' : ''}>
                 <span>${title}</span>
-                <span data-element="arrow" class="sortable-table__sort-arrow">
-                    <span class="sort-arrow">
-                </span>
+                ${id === this.sorted.id ? arrow : ''}
             </div>
       `).join('');
-  }
+    }
 
-  getRowTemplate(data = this.data) {
-    const cellTemplate = (product) => {
-      return this.headerConfig.map(({ id, title, template }) => {
-        if (template) {
-          return template(product[id]);
-        }
+    getRowTemplate(data = this.data) {
+        const cellTemplate = (product) => {
+            return this.headerConfig.map(({ id, title, template }) => {
+                if (template) {
+                    return template(product[id]);
+                }
 
-        return `<div class="sortable-table__cell">${product[id]}</div>`;
-      }).join('');
-    };
+                return `<div class="sortable-table__cell">${product[id]}</div>`;
+            }).join('');
+        };
 
-    return data.map(product => {
-      return `
+        return data.map(product => {
+            return `
                 <a href="/products/${product.id}" class="sortable-table__row">
                     ${cellTemplate(product)}
                 </a>
             `;
-    }).join('');
-  }
-
-  async loadData({ id, order, from, to }) {
-    const url = new URL(`${BACKEND_URL}/${this.url}`);
-
-    // url.searchParams.set('from', from);
-    // url.searchParams.set('to', to);
-    url.searchParams.set('_sort', id);
-    url.searchParams.set('_order', order);
-    url.searchParams.set('_start', '0');
-    url.searchParams.set('_end', this.rowsPerPage);
-
-    return await fetchJson(url);
-  }
-
-  sort(sorted) {
-    const { id, data } = sorted;
-
-    if (this.isSortLocally) {
-      this.sortOnClient(id, data);
-    } else {
-      this.sortOnServer(id, data);
+        }).join('');
     }
-  }
 
-  sortOnClient (id, order) {
-    const sortedData = this.sortData(this.sorted);
+    async handleInfinityScroll() {
+        if (this.status === 'loading') return;
 
-    this.subElements.body.innerHTML = this.getRowTemplate(sortedData);
+        if (this.element.getBoundingClientRect().bottom < document.documentElement.clientHeight) {
+            this.page += 1;
+            this.status = 'loading';
 
-    const sortHeaderCellElems = this.subElements.header.querySelectorAll('[data-sortable="true"]');
+            const data = await this.loadData();
+            await this.renderRows(data);
 
-    for (const elem of sortHeaderCellElems) {
-      elem.dataset.order = elem.dataset.id === id ? order : '';
+            this.data = [ ...this.data, ...data ];
+            this.status = 'pending';
+        }
     }
-  }
 
-  sortOnServer (id, order) {
+    handleClickSort(event) {
+        const sortableElem = event.target.closest('[data-sortable="true"]');
 
-  }
+        if (!sortableElem) return;
 
-  sortData({ id, order }) {
-    const sortData = [ ...this.data ];
-    const sortType = this.headerConfig.find(item => item.id === id).sortType;
+        this.sorted = {
+            id: sortableElem.dataset.id,
+            order: sortableElem.dataset.order === 'asc' ? 'desc' : 'asc'
+        };
 
-    const compare = (a, b, sortType) => {
-      if (sortType === 'string') {
-        return a[id].localeCompare(b[id], 'ru', { caseFirst: 'upper' });
-      }
-      if (sortType === 'number') {
-        return a[id] - b[id];
-      }
-    };
+        const { id, order } = this.sorted;
+        sortableElem.dataset.order = order;
+        sortableElem.append(this.subElements.arrow);
 
-    sortData.sort((a, b) => {
-      if (order === 'asc') {
-        return compare(a, b, sortType);
-      }
-      if (order === 'desc') {
-        return compare(b, a, sortType);
-      }
-    });
-
-    return sortData;
-  }
-
-  async update() {
-    const data = await this.loadData({
-      id: this.sorted.id,
-      order: this.sorted.order,
-    });
-
-    this.data = data;
-
-    this.subElements.header.innerHTML = this.getHeaderTemplate();
-    this.subElements.body.innerHTML = this.getRowTemplate();
-  }
-
-  remove() {
-    if (this.element) {
-      this.element.remove();
+        if (this.isSortLocally) {
+            this.sortOnClient(id, order);
+        } else {
+            this.sortOnServer(id, order);
+        }
     }
-  }
 
-  destroy() {
-    this.remove();
-    this.element = null;
-    this.subElements = null;
-  }
+    renderRows(data) {
+        const rows = this.getRowTemplate(data);
+        this.subElements.body.insertAdjacentHTML('beforeend', rows);
+    }
+
+    async loadData({ id, order } = this.sorted) {
+        const url = new URL(`${BACKEND_URL}/${this.url}`);
+
+        url.searchParams.set('_sort', id);
+        url.searchParams.set('_order', order);
+        url.searchParams.set('_start', String(this.page * this.rowsPerPage));
+        url.searchParams.set('_end', String((this.page + 1) * this.rowsPerPage));
+
+        return await fetchJson(url);
+    }
+
+    sortOnClient(id, order) {
+        const data = this.sortData(id, order);
+        this.subElements.body.innerHTML = this.getRowTemplate(data);
+    }
+
+    sortOnServer(id, order) {
+        this.page = 0;
+        this.isLoaded = false;
+        this.update({ id, order });
+    }
+
+    sortData(id, order) {
+        const sortData = [ ...this.data ];
+        const sortType = this.headerConfig.find(item => item.id === id).sortType;
+
+        const compare = (a, b, sortType) => {
+            if (sortType === 'string') {
+                return a[id].localeCompare(b[id], 'ru', { caseFirst: 'upper' });
+            }
+            if (sortType === 'number') {
+                return a[id] - b[id];
+            }
+        };
+
+        sortData.sort((a, b) => {
+            if (order === 'asc') {
+                return compare(a, b, sortType);
+            }
+            if (order === 'desc') {
+                return compare(b, a, sortType);
+            }
+        });
+
+        return sortData;
+    }
+
+    async update({ id, order } = this.sorted) {
+        if (this.url && !this.isLoaded) {
+            this.data = await this.loadData({ id, order });
+            this.isLoaded = true;
+        }
+
+        this.subElements.body.innerHTML = this.getRowTemplate();
+    }
+
+    remove() {
+        if (this.element) {
+            this.element.remove();
+        }
+    }
+
+    destroy() {
+        this.remove();
+        this.element = null;
+        this.subElements = null;
+        this.page = 0;
+        this.status = 'pending';
+        this.isLoaded = false;
+
+        document.removeEventListener('scroll', this.handleScroll);
+    }
 }

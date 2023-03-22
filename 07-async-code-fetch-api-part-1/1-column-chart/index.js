@@ -25,25 +25,25 @@ export default class ColumnChart {
         this.formatHeading = formatHeading;
 
         this.render();
+        this.update(this.range.from, this.range.to);
     }
 
-    async render() {
+    render() {
         const wrapper = document.createElement('div');
         wrapper.innerHTML = this.getTemplate();
         this.element = wrapper.firstElementChild;
-
-        this.getSubElements();
-
-        await this.update(this.range.from, this.range.to);
+        this.subElements = this.getSubElements();
     }
 
     getSubElements() {
-        this.subElements = {};
+        const subElements = {};
 
         for (const elem of this.element.querySelectorAll('[data-element]')) {
             const name = elem.getAttribute('data-element');
-            this.subElements[name] = elem;
+            subElements[name] = elem;
         }
+
+        return subElements;
     }
 
     getTemplate() {
