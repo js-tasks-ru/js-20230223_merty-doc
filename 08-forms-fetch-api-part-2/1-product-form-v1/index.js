@@ -18,17 +18,17 @@ export default class ProductForm {
         status: 1,
     };
 
-    handleSubmitForm = async event => {
+    handleSubmitForm = event => {
         event.preventDefault();
-        await this.saveProducts(event);
+        this.saveProducts(event);
     }
 
     handleChangeFormField = event => {
         this.onChangeFormField(event);
     }
 
-    handleUploadImages = async event => {
-        await this.onUploadImages(event);
+    handleUploadImages = event => {
+        this.onUploadImages(event);
     }
 
     handleDeleteImage = event => {
@@ -41,15 +41,21 @@ export default class ProductForm {
     }
 
     async render() {
-        if (this.productId) {
-            this.fields = await this.loadProduct();
-        }
+        const fetchCategories = this.loadCategories();
+        const fetchProducts = this.productId
+            ? this.loadProduct()
+            : Promise.resolve(this.fields);
+
+        const [ categories, product ] = await Promise.all([ fetchCategories, fetchProducts ]);
+
+        this.fields = product;
 
         const wrapper = document.createElement('div');
-        wrapper.innerHTML = await this.getTemplate();
+        wrapper.innerHTML = this.getTemplate();
         this.element = wrapper.firstElementChild;
         this.subElements = this.getSubElements();
 
+        this.renderCategories(categories);
         this.initEventListeners();
     }
 
@@ -106,7 +112,7 @@ export default class ProductForm {
         this.fields.images = [ ...images ];
     }
 
-    async getTemplate() {
+    getTemplate() {
         return `
             <div class="product-form">
                 <form data-element="productForm" class="form-grid">
@@ -134,9 +140,7 @@ export default class ProductForm {
                     </div>
                     <div class="form-group form-group__half_left">
                         <label class="form-label">Категория</label>
-                        <select data-element="subcategory" class="form-control" name="subcategory">
-                            ${await this.renderCategories(this.fields['subcategory'])}
-                        </select>
+                        <select data-element="subcategory" class="form-control" name="subcategory"></select>
                     </div>
                     <div class="form-group form-group__half_left form-group__two-col">
                         <fieldset>
@@ -191,22 +195,15 @@ export default class ProductForm {
         return this.fields.images.map(image => this.getImageRowTemplate(image)).join('');
     }
 
-    async renderCategories(selected) {
-        const categories = await this.loadCategories();
+    async renderCategories(categories) {
+        const subcategories = categories.flatMap(category => category.subcategories);
+        const selected = this.fields.subcategory || subcategories[0].id;
 
-        if (!this.productId) {
-            this.fields.subcategory = categories[0].subcategories[0].id;
-            selected = this.fields.subcategory;
-        }
-
-        return categories.map((category) => {
-            return category.subcategories.map(subcategory => {
-                return `
-                    <option value="${subcategory.id}"${subcategory.id === selected ? ' selected' : ''}>
-                        ${category.title} > ${subcategory.title}
-                    </option>`;
-            }).join('');
-        }).join('');
+        subcategories.forEach((subcategory, index) => {
+            const parent = categories.find(category => category.id === subcategory.category);
+            const text = `${parent.title} > ${subcategory.title}`;
+            this.subElements.subcategory[index] = new Option(text, subcategory.id, false, subcategory.id === selected);
+        });
     }
 
     async loadCategories() {
@@ -258,7 +255,7 @@ export default class ProductForm {
 
     async saveProducts() {
         const url = new URL('/api/rest/products', this.url);
-        const method = !this.productId ? 'PUT' : 'PATCH';
+        const method = this.productId ? 'PATCH' : 'PUT';
 
         try {
             const data = await fetchJson(url, {
@@ -267,13 +264,14 @@ export default class ProductForm {
                 body: JSON.stringify(this.fields),
             });
 
-            const eventName = !this.productId ? 'product-saved' : 'product-updated';
+            const eventName = this.productId ? 'product-updated' : 'product-saved';
 
             this.element.dispatchEvent(new CustomEvent(eventName, {
                 detail: data
             }));
-        } catch (e) {
-            console.error(e);
+        } catch (error) {
+            console.error(error);
+            return Promise.reject(error);
         }
     }
 
